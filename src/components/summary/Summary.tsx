@@ -3,7 +3,11 @@
 
 // importing the required modules
 import { useEffect, useState } from "react";
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
 import { fetchExcelData } from "../../utils/excelParser";
+import Graphs from "../graph/Graphs";
+import Table from "../table/Table";
 
 const Summary = () => {
   const [data, setData] = useState<any[]>([]);
@@ -67,9 +71,60 @@ const Summary = () => {
   // Handle page change
   const paginate = (pageNumber: number) => setCurrentPage(pageNumber);
 
+  const handleDownloadPdf = async () => {
+    // Hide the table-container element
+    const tableContainer = document.getElementById("table-container");
+    if (tableContainer) {
+      tableContainer.style.display = "none";
+    }
+
+    const pdf = new jsPDF("p", "mm", "a4");
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const margin = 10;
+
+    // Helper function to render a section on a new page
+    const renderSection = async (elementId: string) => {
+      const element = document.getElementById(elementId);
+      if (!element) return;
+
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+      });
+      const imgData = canvas.toDataURL("image/png");
+      const imgWidth = pageWidth - 2 * margin;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+      pdf.addImage(imgData, "PNG", margin, margin, imgWidth, imgHeight);
+    };
+
+    // Render counts summary on the first page
+    await renderSection("summary-container");
+
+    // Add a new page for graphs
+    pdf.addPage();
+    await renderSection("graphs-container");
+
+    // Save the generated PDF
+    pdf.save("inventory-summary.pdf");
+
+    // Restore the visibility of the table-container element
+    if (tableContainer) {
+      tableContainer.style.display = "block";
+    }
+  };
+
   return (
-    <div className="container mx-auto p-4">
+    <div id="summary-container" className="relative container mx-auto p-4">
       <h1 className="text-3xl font-bold text-center mb-6">Inventory Summary</h1>
+
+      <button
+        onClick={handleDownloadPdf}
+        className="absolute top-8 right-4 bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+      >
+        download pdf
+      </button>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
         <div className="bg-blue-500 text-white rounded-lg shadow-lg p-4">
@@ -88,13 +143,13 @@ const Summary = () => {
           <h3 className="text-lg font-semibold">Total Vendors</h3>
           <p className="text-2xl font-bold">{vendorCount.size}</p>
         </div>
-        <div className="bg-indigo-500 text-white rounded-lg shadow-lg p-4">
-          <h3 className="text-lg font-semibold">Total Received</h3>
-          <p className="text-2xl font-bold">{statusCount.received}</p>
-        </div>
         <div className="bg-purple-500 text-white rounded-lg shadow-lg p-4">
-          <h3 className="text-lg font-semibold">Total Shipped</h3>
+          <h3 className="text-lg font-semibold">Total Orders Shipped</h3>
           <p className="text-2xl font-bold">{statusCount.shipped}</p>
+        </div>
+        <div className="bg-indigo-500 text-white rounded-lg shadow-lg p-4">
+          <h3 className="text-lg font-semibold">Total Orders Received</h3>
+          <p className="text-2xl font-bold">{statusCount.received}</p>
         </div>
       </div>
 
@@ -130,7 +185,6 @@ const Summary = () => {
         </table>
       </div>
 
-      {/* Pagination Section */}
       <div className="flex justify-center items-center mt-6 space-x-2">
         <button
           onClick={() => currentPage > 1 && paginate(currentPage - 1)}
@@ -157,6 +211,10 @@ const Summary = () => {
         >
           next
         </button>
+      </div>
+      <Graphs data={data} />
+      <div id="table-container" className="mt-8">
+        <Table data={data} />
       </div>
     </div>
   );
