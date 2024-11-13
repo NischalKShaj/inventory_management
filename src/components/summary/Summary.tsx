@@ -8,6 +8,8 @@ import html2canvas from "html2canvas";
 import { fetchExcelData } from "../../utils/excelParser";
 import Graphs from "../graph/Graphs";
 import Table from "../table/Table";
+import CompleteData from "../completeData/CompleteData";
+import "@fortawesome/fontawesome-free/css/all.min.css";
 
 const Summary = () => {
   const [data, setData] = useState<any[]>([]);
@@ -63,55 +65,197 @@ const Summary = () => {
     loadData();
   }, []);
 
-  // Calculate the current page's products
+  // calculate the current page's products
   const indexOfLastProduct = currentPage * itemsPerPage;
   const indexOfFirstProduct = indexOfLastProduct - itemsPerPage;
   const currentProducts = data.slice(indexOfFirstProduct, indexOfLastProduct);
 
-  // Handle page change
+  // handle page change
   const paginate = (pageNumber: number) => setCurrentPage(pageNumber);
 
   const handleDownloadPdf = async () => {
-    // Hide the table-container element
-    const tableContainer = document.getElementById("table-container");
-    if (tableContainer) {
-      tableContainer.style.display = "none";
-    }
-
-    const pdf = new jsPDF("p", "mm", "a4");
-    const pageWidth = pdf.internal.pageSize.getWidth();
-    const margin = 10;
-
-    // Helper function to render a section on a new page
-    const renderSection = async (elementId: string) => {
-      const element = document.getElementById(elementId);
-      if (!element) return;
-
-      const canvas = await html2canvas(element, {
-        scale: 2,
-        useCORS: true,
-        logging: false,
+    const toggleElements = (display: string) => {
+      ["download-button", "table-container"].forEach((id) => {
+        const element = document.getElementById(id);
+        if (element) {
+          element.style.display = display;
+        }
       });
-      const imgData = canvas.toDataURL("image/png");
-      const imgWidth = pageWidth - 2 * margin;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-
-      pdf.addImage(imgData, "PNG", margin, margin, imgWidth, imgHeight);
     };
 
-    // Render counts summary on the first page
-    await renderSection("summary-container");
+    try {
+      toggleElements("none");
 
-    // Add a new page for graphs
-    pdf.addPage();
-    await renderSection("graphs-container");
+      const pdf = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: "a4",
+        compress: true,
+      });
 
-    // Save the generated PDF
-    pdf.save("inventory-summary.pdf");
+      // PDF dimension constants
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margins = {
+        top: 15,
+        bottom: 15,
+        left: 20,
+        right: 20,
+        content: 10,
+      };
 
-    // Restore the visibility of the table-container element
-    if (tableContainer) {
-      tableContainer.style.display = "block";
+      // create front page
+      const createFrontPage = () => {
+        const centerX = pageWidth / 2;
+
+        let yPosition = pageHeight / 3;
+
+        // main title
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(24);
+        pdf.text("Inventory Summary Report", centerX, yPosition, {
+          align: "center",
+        });
+
+        // decorative line
+        yPosition += 10;
+        pdf.setLineWidth(0.5);
+        pdf.line(centerX - 40, yPosition, centerX + 40, yPosition);
+
+        // subtitle or department name
+        yPosition += 15;
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(16);
+        pdf.text("Quarterly Overview", centerX, yPosition, { align: "center" });
+
+        // date and time
+        yPosition += 25;
+        pdf.setFontSize(12);
+        const today = new Date();
+        pdf.text(
+          today.toLocaleDateString("en-US", {
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+          }),
+          centerX,
+          yPosition,
+          { align: "center" }
+        );
+
+        // time
+        yPosition += 8;
+        pdf.text(
+          today.toLocaleTimeString("en-US", {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+          centerX,
+          yPosition,
+          { align: "center" }
+        );
+
+        const bottomY = pageHeight - margins.bottom - 20;
+        pdf.setFontSize(10);
+        pdf.setFont("helvetica", "italic");
+        pdf.text("Confidential Document", centerX, bottomY, {
+          align: "center",
+        });
+      };
+
+      // Create the front page
+      createFrontPage();
+
+      // Reset yPosition for content pages
+      let yPosition = margins.top;
+
+      // Helper function to add content to PDF
+      const addContentToPdf = async (
+        elementId: string,
+        options: {
+          scale?: number;
+          title?: string;
+          addPageBreak?: boolean;
+        } = {}
+      ) => {
+        const element = document.getElementById(elementId);
+        if (!element) {
+          console.warn(`Element with id '${elementId}' not found`);
+          return;
+        }
+
+        // generate high-quality image of the content first to get dimensions
+        const canvas = await html2canvas(element, {
+          scale: options.scale || 2,
+          useCORS: true,
+          logging: false,
+          backgroundColor: "#ffffff",
+          windowWidth: element.scrollWidth,
+          windowHeight: element.scrollHeight,
+        });
+
+        const imgData = canvas.toDataURL("image/png");
+        const imgWidth = pageWidth - (margins.left + margins.right);
+        const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+        // calculate total required height including title and content
+        const titleHeight = options.title ? 20 : 0;
+        const totalRequiredHeight = titleHeight + imgHeight + margins.content;
+
+        if (yPosition + totalRequiredHeight > pageHeight - margins.bottom) {
+          pdf.addPage();
+          yPosition = margins.top;
+        }
+
+        if (options.title) {
+          pdf.setFont("helvetica", "bold");
+          pdf.setFontSize(16);
+          pdf.text(options.title, pageWidth / 2, yPosition, {
+            align: "center",
+          });
+          yPosition += 15;
+        }
+
+        pdf.addImage(
+          imgData,
+          "PNG",
+          margins.left,
+          yPosition,
+          imgWidth,
+          imgHeight
+        );
+
+        yPosition += imgHeight + margins.content;
+
+        if (options.addPageBreak) {
+          pdf.addPage();
+          yPosition = margins.top;
+        }
+      };
+
+      // add content sections with titles
+      await addContentToPdf("summary-container", {
+        scale: 2,
+        title: "Summary Statistics",
+      });
+
+      await addContentToPdf("graphs-container", {
+        scale: 2,
+        title: "Graphical Analysis",
+      });
+
+      try {
+        pdf.save("inventory-summary.pdf");
+      } catch (error) {
+        console.error("Error saving PDF:", error);
+        alert("There was an error generating the PDF. Please try again.");
+      }
+
+      toggleElements("block");
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      alert("There was an error generating the PDF. Please try again.");
+      toggleElements("block");
     }
   };
 
@@ -121,10 +265,13 @@ const Summary = () => {
 
       <button
         onClick={handleDownloadPdf}
-        className="absolute top-8 right-4 bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+        id="download-button"
+        className="absolute top-24 right-6 bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded shadow-md transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50"
       >
-        download pdf
+        <i className="fas fa-file-pdf mr-2"></i> Download PDF
       </button>
+
+      <CompleteData data={data} />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
         <div className="bg-blue-500 text-white rounded-lg shadow-lg p-4">

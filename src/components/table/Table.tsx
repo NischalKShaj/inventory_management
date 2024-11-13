@@ -5,6 +5,7 @@
 import React, { useMemo } from "react";
 import { Column, useTable } from "react-table";
 import * as XLSX from "xlsx";
+import "@fortawesome/fontawesome-free/css/all.min.css";
 
 // function to convert json to xlsx
 const handleDownloadXML = (data: any[], fileName: string) => {
@@ -229,7 +230,7 @@ const Table: React.FC<Data> = ({ data }) => {
           onClick={() => handleDownloadXML(categoryData, "CategoryData")}
           className="mt-4 px-6 py-2 bg-green-600 text-white font-semibold text-sm rounded-lg shadow-md hover:bg-green-700 hover:shadow-lg transition-all duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-opacity-75"
         >
-          <i className="fas fa-download mr-2"></i> Download XLSX (Category)
+          <i className="fas fa-download mr-2"></i> Download Excel (Category)
         </button>
       </div>
 
@@ -280,7 +281,7 @@ const Table: React.FC<Data> = ({ data }) => {
           onClick={() => handleDownloadXML(warehouseData, "WarehouseData")}
           className="mt-4 px-6 py-2 bg-green-600 text-white font-semibold text-sm rounded-lg shadow-md hover:bg-green-700 hover:shadow-lg transition-all duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-opacity-75"
         >
-          <i className="fas fa-download mr-2"></i>Download XML (Warehouse)
+          <i className="fas fa-download mr-2"></i>Download Excel (Warehouse)
         </button>
       </div>
     </div>
