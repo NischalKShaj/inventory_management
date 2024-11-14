@@ -14,6 +14,7 @@ import {
   Tooltip,
   Legend,
 } from "chart.js";
+import Backorder from "../backeorder/Backorder";
 
 ChartJS.register(
   CategoryScale,
@@ -35,6 +36,8 @@ const Report = () => {
   const [data, setData] = useState<any[]>([]);
   const [categories, setCategory] = useState<string[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>("");
+  const [products, setProducts] = useState<string[]>([]);
+  const [selectedProducts, setSelectedProduct] = useState<string>("");
 
   useEffect(() => {
     const loadData = async () => {
@@ -43,7 +46,10 @@ const Report = () => {
       const categorySet = new Set(
         response.map((item: any) => item.CategoryName)
       );
-      setCategory(Array.from(categorySet)); // Set unique categories
+      setCategory(Array.from(categorySet));
+
+      const productSet = new Set(response.map((item: any) => item.ProductName));
+      setProducts(Array.from(productSet));
     };
     loadData();
   }, []);
@@ -52,6 +58,10 @@ const Report = () => {
 
   const handleCategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setSelectedCategory(e.target.value);
+  };
+
+  const handleProductChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setSelectedProduct(e.target.value);
   };
 
   // for calculating the aging report for the categories
@@ -64,24 +74,20 @@ const Report = () => {
       Others: 0,
     };
 
-    // Filter data based on selected category
+    // filter data based on selected category
     const filteredData = data.filter(
       (item) => item.CategoryName === selectedCategory
     );
 
     filteredData.forEach((item) => {
       const orderDate = new Date(excelDateToJSDate(item.OrderDate).toString());
-      const availableQty = item.AvaliableQuantity || 0; // Default to 0 if not present
+      const availableQty = item.AvaliableQuantity || 0;
 
       const daysInStock = Math.floor(
         (today - orderDate.getTime()) / (1000 * 60 * 60 * 24)
-      ); // Days in stock
+      );
 
-      // Log values for debugging
-      console.log("Order Date:", item.OrderDate, "Parsed Date:", orderDate);
-      console.log("Days in Stock:", daysInStock, "Qty:", availableQty);
-
-      // Update the category report based on days in stock
+      // update the category report based on days in stock
       if (daysInStock <= 30) {
         categoryAgeReport["0-30 Days"] += availableQty;
       } else if (daysInStock <= 60) {
@@ -95,12 +101,53 @@ const Report = () => {
       }
     });
 
-    // Return the calculated category age report
+    // return the calculated category age report
     return categoryAgeReport;
   };
 
   // calculating the ageing report
   const categoryAge: any = selectedCategory ? calculateAgeReport() : {};
+
+  // calculating the aging
+  const productAgeingReport = () => {
+    const productAgeReport = {
+      "0-30 Days": 0,
+      "31-60 Days": 0,
+      "61-90 Days": 0,
+      "91-120 Days": 0,
+      Others: 0,
+    };
+
+    // filter data based on product
+    const filteredData = data.filter(
+      (item) => item.ProductName === selectedProducts
+    );
+
+    filteredData.forEach((item) => {
+      const orderDate = new Date(excelDateToJSDate(item.OrderDate).toString());
+      const availableQty = item.AvaliableQuantity || 0;
+
+      const daysInStock = Math.floor(
+        (today - orderDate.getTime()) / (1000 * 60 * 60 * 24)
+      );
+
+      // update the category report based on days in stock
+      if (daysInStock <= 30) {
+        productAgeReport["0-30 Days"] += availableQty;
+      } else if (daysInStock <= 60) {
+        productAgeReport["31-60 Days"] += availableQty;
+      } else if (daysInStock <= 90) {
+        productAgeReport["61-90 Days"] += availableQty;
+      } else if (daysInStock <= 120) {
+        productAgeReport["91-120 Days"] += availableQty;
+      } else {
+        productAgeReport["Others"] += availableQty;
+      }
+    });
+    return productAgeReport;
+  };
+
+  const productAge: any = selectedProducts ? productAgeingReport() : {};
 
   // setting the data for the category
   const categoryChartData = {
@@ -130,11 +177,81 @@ const Report = () => {
         display: true,
         text: "Inventory Aging by Category",
       },
+      tooltip: {
+        callbacks: {
+          label: (context: any) => {
+            const stockQuantity = context.raw;
+            return `${context.dataset.label}: ${stockQuantity} Stock Quantity`;
+          },
+        },
+      },
     },
-    tooltip: {
-      callbacks: {
-        label: (context: any) => {
-          return `${context.dataset.label}: ${context.raw}`;
+    scales: {
+      y: {
+        title: {
+          display: true,
+          text: "Stock Quantity",
+        },
+        beginAtZero: true,
+      },
+      x: {
+        title: {
+          display: true,
+          text: "Age Range (Days)",
+        },
+      },
+    },
+  };
+
+  // setting the data for the product
+  const productChartData = {
+    labels: ["0-30 Days", "31-60 Days", "61-90 Days", "91-120 Days", "Others"],
+    datasets: [
+      {
+        label: `Inventory Ageing Report for the product:${selectedProducts}`,
+        data: [
+          productAge["0-30 Days"],
+          productAge["31-60 Days"],
+          productAge["61-90 Days"],
+          productAge["91-120 Days"],
+          productAge["Others"],
+        ],
+        backgroundColor: "#4caf50",
+        borderColor: "#388e3c",
+        borderWidth: 1,
+      },
+    ],
+  };
+
+  // setting the options for the category
+  const productChartOptions = {
+    responsive: true,
+    plugins: {
+      title: {
+        display: true,
+        text: "Inventory Aging by Product",
+      },
+      tooltip: {
+        callbacks: {
+          label: (context: any) => {
+            const stockQuantity = context.raw;
+            return `${context.dataset.label}: ${stockQuantity} Stock Quantity`;
+          },
+        },
+      },
+    },
+    scales: {
+      y: {
+        title: {
+          display: true,
+          text: "Stock Quantity",
+        },
+        beginAtZero: true,
+      },
+      x: {
+        title: {
+          display: true,
+          text: "Age Range (Days)",
         },
       },
     },
@@ -171,6 +288,33 @@ const Report = () => {
           <Bar data={categoryChartData} options={categoryChartOptions} />
         </div>
       </div>
+      <div className="mb-4">
+        <label
+          htmlFor="select-product"
+          className="block text-sm font-semibold mb-2"
+        >
+          Choose a Product:
+        </label>
+        <select
+          id="product-select"
+          value={selectedProducts}
+          onChange={handleProductChange}
+          className="p-2 border border-gray-300 rounded"
+        >
+          <option value="">Select Product</option>
+          {products.map((product, index) => (
+            <option key={index} value={product}>
+              {product}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="mb-4">
+        <div className="w-full md:w-[600px] h-[400px]">
+          <Bar data={productChartData} options={productChartOptions} />
+        </div>
+      </div>
+      <Backorder data={data} />
     </div>
   );
 };
