@@ -80,31 +80,59 @@ const Backorder: React.FC<Data> = ({ data }) => {
   // setting the options for the graph
   const options: ChartOptions<"doughnut"> = {
     responsive: true,
+    maintainAspectRatio: false,
     plugins: {
       legend: {
         display: true,
-        position: "right",
+        position: "right" as const,
+        labels: {
+          boxWidth: 15,
+          padding: 15,
+          font: {
+            size: 12,
+          },
+        },
       },
       title: {
         display: true,
         text: `Backorders for ${selectedCategory}`,
+        font: {
+          size: 16,
+          weight: "bold",
+        },
+        padding: {
+          top: 10,
+          bottom: 30,
+        },
+      },
+    },
+    layout: {
+      padding: {
+        top: 20,
+        bottom: 20,
+        left: 20,
+        right: 20,
       },
     },
   };
 
   return (
-    <div>
-      <div>
-        <label htmlFor="category" className="block mb-2 font-medium">
+    <div className="bg-white p-6 rounded-lg shadow-lg">
+      <h2 className="text-2xl font-bold mb-4">Backorder Analysis</h2>
+      <div className="mb-4">
+        <label
+          htmlFor="category"
+          className="block mb-2 font-medium text-gray-700"
+        >
           Select Category
         </label>
         <select
           id="category"
-          className="p-2 border rounded w-full"
+          className="p-2 border rounded w-full focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           value={selectedCategory}
           onChange={(e) => setSelectedCategory(e.target.value)}
         >
-          <option value="">-- select a category --</option>
+          <option value="">-- Select a category --</option>
           {categories.map((category) => (
             <option key={category} value={category}>
               {category}

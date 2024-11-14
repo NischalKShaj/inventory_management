@@ -75,7 +75,12 @@ const Summary = () => {
 
   const handleDownloadPdf = async () => {
     const toggleElements = (display: string) => {
-      ["download-button", "table-container"].forEach((id) => {
+      [
+        "download-button",
+        "table-container",
+        "complete-data",
+        "inventory-data",
+      ].forEach((id) => {
         const element = document.getElementById(id);
         if (element) {
           element.style.display = display;
@@ -107,7 +112,6 @@ const Summary = () => {
       // create front page
       const createFrontPage = () => {
         const centerX = pageWidth / 2;
-
         let yPosition = pageHeight / 3;
 
         // main title
@@ -165,6 +169,7 @@ const Summary = () => {
 
       // Create the front page
       createFrontPage();
+      // pdf.addPage();
 
       // Reset yPosition for content pages
       let yPosition = margins.top;
@@ -178,71 +183,169 @@ const Summary = () => {
           addPageBreak?: boolean;
         } = {}
       ) => {
-        const element = document.getElementById(elementId);
+        const element = document.getElementById(elementId) as HTMLElement;
         if (!element) {
           console.warn(`Element with id '${elementId}' not found`);
           return;
         }
 
-        // generate high-quality image of the content first to get dimensions
-        const canvas = await html2canvas(element, {
-          scale: options.scale || 2,
-          useCORS: true,
-          logging: false,
-          backgroundColor: "#ffffff",
-          windowWidth: element.scrollWidth,
-          windowHeight: element.scrollHeight,
-        });
+        try {
+          // Ensure the element is visible before capturing
+          element.style.display = "block";
 
-        const imgData = canvas.toDataURL("image/png");
-        const imgWidth = pageWidth - (margins.left + margins.right);
-        const imgHeight = (canvas.height * imgWidth) / canvas.width;
-
-        // calculate total required height including title and content
-        const titleHeight = options.title ? 20 : 0;
-        const totalRequiredHeight = titleHeight + imgHeight + margins.content;
-
-        if (yPosition + totalRequiredHeight > pageHeight - margins.bottom) {
-          pdf.addPage();
-          yPosition = margins.top;
-        }
-
-        if (options.title) {
-          pdf.setFont("helvetica", "bold");
-          pdf.setFontSize(16);
-          pdf.text(options.title, pageWidth / 2, yPosition, {
-            align: "center",
+          const canvas = await html2canvas(element, {
+            scale: options.scale || 2,
+            useCORS: true,
+            backgroundColor: "#ffffff",
+            windowWidth: element.scrollWidth,
+            windowHeight: element.scrollHeight,
           });
-          yPosition += 15;
-        }
 
-        pdf.addImage(
-          imgData,
-          "PNG",
-          margins.left,
-          yPosition,
-          imgWidth,
-          imgHeight
-        );
+          const imgData = canvas.toDataURL("image/png");
+          const imgWidth = pageWidth - (margins.left + margins.right);
+          const imgHeight = (canvas.height * imgWidth) / canvas.width;
 
-        yPosition += imgHeight + margins.content;
+          const titleHeight = options.title ? 20 : 0;
+          const totalRequiredHeight = titleHeight + imgHeight + margins.content;
 
-        if (options.addPageBreak) {
-          pdf.addPage();
-          yPosition = margins.top;
+          if (yPosition + totalRequiredHeight > pageHeight - margins.bottom) {
+            pdf.addPage();
+            yPosition = margins.top;
+          }
+
+          if (options.title) {
+            pdf.setFont("helvetica", "bold");
+            pdf.setFontSize(16);
+            pdf.text(options.title, pageWidth / 2, yPosition, {
+              align: "center",
+            });
+            yPosition += 15;
+          }
+
+          pdf.addImage(
+            imgData,
+            "PNG",
+            margins.left,
+            yPosition,
+            imgWidth,
+            imgHeight
+          );
+          yPosition += imgHeight + margins.content;
+
+          if (options.addPageBreak) {
+            pdf.addPage();
+            yPosition = margins.top;
+          }
+        } catch (error) {
+          console.error(`Error processing element ${elementId}:`, error);
+          alert(
+            `Failed to process content for ${elementId}. Please try again.`
+          );
         }
       };
 
-      // add content sections with titles
+      // Add summary section
       await addContentToPdf("summary-container", {
         scale: 2,
         title: "Summary Statistics",
       });
 
-      await addContentToPdf("graphs-container", {
-        scale: 2,
-        title: "Graphical Analysis",
-      });
+      // Improved graph layout function
+      const addGraphsInRow = async () => {
+        const graphContainer = document.getElementById("graphs-container");
+        if (!graphContainer) {
+          console.warn("Graph container not found");
+          return;
+        }
+
+        // Add title for the graphs section
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(16);
+        pdf.text("Analysis Graphs", pageWidth / 2, yPosition, {
+          align: "center",
+        });
+        yPosition += 15;
+
+        const graphs = Array.from(graphContainer.querySelectorAll(".graph"));
+        if (graphs.length === 0) {
+          console.warn("No graphs found in container");
+          return;
+        }
+
+        // Calculate dimensions for the row layout
+        const availableWidth = pageWidth - (margins.left + margins.right);
+        const graphWidth =
+          (availableWidth - (graphs.length - 1) * 10) / graphs.length; // 10mm spacing between graphs
+
+        const graphPromises = graphs.map(async (graphElement, index) => {
+          if (!(graphElement instanceof HTMLElement)) {
+            console.warn(`Graph element not found at index ${index}`);
+            return null;
+          }
+
+          try {
+            // Ensure element is properly rendered for canvas conversion
+            graphElement.style.display = "block";
+
+            const canvas = await html2canvas(graphElement, {
+              scale: 2,
+              useCORS: true,
+              backgroundColor: "#ffffff",
+            });
+
+            const imgData = canvas.toDataURL("image/png");
+            const aspectRatio = canvas.height / canvas.width;
+            const imgHeight = graphWidth * aspectRatio;
+
+            console.log(`Graph ${index + 1}:`, {
+              width: graphWidth,
+              height: imgHeight,
+              xPosition: margins.left + index * (graphWidth + 10),
+              yPosition: yPosition,
+            });
+
+            return {
+              imgData,
+              width: graphWidth,
+              height: imgHeight,
+              x: margins.left + index * (graphWidth + 10),
+            };
+          } catch (error) {
+            console.error(`Error processing graph ${index + 1}:`, error);
+            alert(`Failed to process graph ${index + 1}. Please try again.`);
+            return null;
+          }
+        });
+
+        const graphsData = await Promise.all(graphPromises);
+
+        const maxHeight = Math.max(
+          ...graphsData.map((graph) => graph?.height ?? 0)
+        );
+
+        if (yPosition + maxHeight > pageHeight - margins.bottom) {
+          pdf.addPage();
+          yPosition = margins.top;
+        }
+
+        graphsData.forEach((graph) => {
+          if (graph) {
+            pdf.addImage(
+              graph.imgData,
+              "PNG",
+              graph.x,
+              yPosition,
+              graph.width,
+              graph.height
+            );
+          }
+        });
+
+        yPosition += maxHeight + margins.content;
+      };
+
+      // Add the graphs in a row
+      await addGraphsInRow();
 
       try {
         pdf.save("inventory-summary.pdf");
@@ -260,109 +363,155 @@ const Summary = () => {
   };
 
   return (
-    <div id="summary-container" className="relative container mx-auto p-4">
-      <h1 className="text-3xl font-bold text-center mb-6">Inventory Summary</h1>
+    <div
+      id="summary-container"
+      className="container mx-auto px-4 py-8 space-y-12"
+    >
+      <header className="text-center mb-12">
+        <h1 className="text-4xl font-bold text-gray-800 mb-2">
+          Inventory Summary
+        </h1>
+        <p className="text-xl text-gray-600">
+          Comprehensive overview of your inventory status
+        </p>
+      </header>
 
       <button
         onClick={handleDownloadPdf}
         id="download-button"
-        className="absolute top-24 right-6 bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded shadow-md transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50"
+        className="absolute top-24 right-20 bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded shadow-lg transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 z-10"
       >
         <i className="fas fa-file-pdf mr-2"></i> Download PDF
       </button>
-
-      <CompleteData data={data} />
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
-        <div className="bg-blue-500 text-white rounded-lg shadow-lg p-4">
-          <h3 className="text-lg font-semibold">Total Categories</h3>
-          <p className="text-2xl font-bold">{categoryCount.size}</p>
-        </div>
-        <div className="bg-green-500 text-white rounded-lg shadow-lg p-4">
-          <h3 className="text-lg font-semibold">Total Warehouses</h3>
-          <p className="text-2xl font-bold">{warehouseCount.size}</p>
-        </div>
-        <div className="bg-yellow-500 text-white rounded-lg shadow-lg p-4">
-          <h3 className="text-lg font-semibold">Total Products</h3>
-          <p className="text-2xl font-bold">{productCount.size}</p>
-        </div>
-        <div className="bg-red-500 text-white rounded-lg shadow-lg p-4">
-          <h3 className="text-lg font-semibold">Total Vendors</h3>
-          <p className="text-2xl font-bold">{vendorCount.size}</p>
-        </div>
-        <div className="bg-purple-500 text-white rounded-lg shadow-lg p-4">
-          <h3 className="text-lg font-semibold">Total Orders Shipped</h3>
-          <p className="text-2xl font-bold">{statusCount.shipped}</p>
-        </div>
-        <div className="bg-indigo-500 text-white rounded-lg shadow-lg p-4">
-          <h3 className="text-lg font-semibold">Total Orders Received</h3>
-          <p className="text-2xl font-bold">{statusCount.received}</p>
-        </div>
+      <div id="complete-data">
+        <CompleteData data={data} />
       </div>
 
-      <div className="overflow-x-auto shadow-lg rounded-lg">
-        <table className="min-w-full border-collapse border border-gray-300 bg-white">
-          <thead>
-            <tr className="bg-gray-200">
-              <th className="py-2 px-4 border-b text-left text-gray-700 font-semibold">
-                Product Name
-              </th>
-              <th className="py-2 px-4 border-b text-left text-gray-700 font-semibold">
-                Order Item Quantity
-              </th>
-              <th className="py-2 px-4 border-b text-left text-gray-700 font-semibold">
-                Available Quantity
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {currentProducts.map((item: any, index: number) => (
-              <tr
-                key={index}
-                className={`${
-                  index % 2 === 0 ? "bg-gray-100" : "bg-white"
-                } hover:bg-gray-50`}
-              >
-                <td className="py-2 px-4 border-b">{item.ProductName}</td>
-                <td className="py-2 px-4 border-b">{item.OrderItemQuantity}</td>
-                <td className="py-2 px-4 border-b">{item.AvaliableQuantity}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <section className="mb-12">
+        <h2 className="text-3xl font-semibold text-gray-800 mb-6">
+          Key Metrics
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="bg-blue-500 text-white rounded-xl shadow-lg p-6 transform transition-all hover:scale-105">
+            <h3 className="text-xl font-semibold mb-2">Total Categories</h3>
+            <p className="text-3xl font-bold">{categoryCount.size}</p>
+          </div>
+          <div className="bg-green-500 text-white rounded-xl shadow-lg p-6 transform transition-all hover:scale-105">
+            <h3 className="text-xl font-semibold mb-2">Total Warehouses</h3>
+            <p className="text-3xl font-bold">{warehouseCount.size}</p>
+          </div>
+          <div className="bg-yellow-500 text-white rounded-xl shadow-lg p-6 transform transition-all hover:scale-105">
+            <h3 className="text-xl font-semibold mb-2">Total Products</h3>
+            <p className="text-3xl font-bold">{productCount.size}</p>
+          </div>
+          <div className="bg-red-500 text-white rounded-xl shadow-lg p-6 transform transition-all hover:scale-105">
+            <h3 className="text-xl font-semibold mb-2">Total Vendors</h3>
+            <p className="text-3xl font-bold">{vendorCount.size}</p>
+          </div>
+          <div className="bg-purple-500 text-white rounded-xl shadow-lg p-6 transform transition-all hover:scale-105">
+            <h3 className="text-xl font-semibold mb-2">Total Orders Shipped</h3>
+            <p className="text-3xl font-bold">{statusCount.shipped}</p>
+          </div>
+          <div className="bg-indigo-500 text-white rounded-xl shadow-lg p-6 transform transition-all hover:scale-105">
+            <h3 className="text-xl font-semibold mb-2">
+              Total Orders Received
+            </h3>
+            <p className="text-3xl font-bold">{statusCount.received}</p>
+          </div>
+        </div>
+      </section>
 
-      <div className="flex justify-center items-center mt-6 space-x-2">
-        <button
-          onClick={() => currentPage > 1 && paginate(currentPage - 1)}
-          className={`px-4 py-2 rounded ${
-            currentPage === 1
-              ? "bg-gray-300 text-gray-700 cursor-not-allowed"
-              : "bg-blue-500 text-white"
-          }`}
-          disabled={currentPage === 1}
-        >
-          previous
-        </button>
-        <button
-          onClick={() =>
-            currentPage < Math.ceil(data.length / itemsPerPage) &&
-            paginate(currentPage + 1)
-          }
-          className={`px-4 py-2 rounded ${
-            currentPage === Math.ceil(data.length / itemsPerPage)
-              ? "bg-gray-300 text-gray-700 cursor-not-allowed"
-              : "bg-blue-500 text-white"
-          }`}
-          disabled={currentPage === Math.ceil(data.length / itemsPerPage)}
-        >
-          next
-        </button>
-      </div>
-      <Graphs data={data} />
-      <div id="table-container" className="mt-8">
-        <Table data={data} />
-      </div>
+      <section className="mb-12" id="inventory-data">
+        <h2 className="text-3xl font-semibold text-gray-800 mb-6">
+          Product Inventory
+        </h2>
+        <div className="bg-white shadow-xl rounded-xl overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th
+                    scope="col"
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  >
+                    Product Name
+                  </th>
+                  <th
+                    scope="col"
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  >
+                    Order Item Quantity
+                  </th>
+                  <th
+                    scope="col"
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  >
+                    Available Quantity
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {currentProducts.map((item: any, index: number) => (
+                  <tr key={index} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      {item.ProductName}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {item.OrderItemQuantity}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {item.AvaliableQuantity}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div className="flex justify-center items-center mt-6 space-x-2">
+          <button
+            onClick={() => currentPage > 1 && paginate(currentPage - 1)}
+            className={`px-4 py-2 rounded ${
+              currentPage === 1
+                ? "bg-gray-300 text-gray-700 cursor-not-allowed"
+                : "bg-blue-500 hover:bg-blue-600 text-white transition-colors"
+            }`}
+            disabled={currentPage === 1}
+          >
+            Previous
+          </button>
+          <button
+            onClick={() =>
+              currentPage < Math.ceil(data.length / itemsPerPage) &&
+              paginate(currentPage + 1)
+            }
+            className={`px-4 py-2 rounded ${
+              currentPage === Math.ceil(data.length / itemsPerPage)
+                ? "bg-gray-300 text-gray-700 cursor-not-allowed"
+                : "bg-blue-500 hover:bg-blue-600 text-white transition-colors"
+            }`}
+            disabled={currentPage === Math.ceil(data.length / itemsPerPage)}
+          >
+            Next
+          </button>
+        </div>
+      </section>
+
+      <section className="mb-12">
+        <h2 className="text-3xl font-semibold text-gray-800 mb-6">
+          Graphical Analysis
+        </h2>
+        <Graphs data={data} />
+      </section>
+
+      <section className="mb-12">
+        <h2 className="text-3xl font-semibold text-gray-800 mb-6">
+          Detailed Inventory Tables
+        </h2>
+        <div id="table-container">
+          <Table data={data} />
+        </div>
+      </section>
     </div>
   );
 };

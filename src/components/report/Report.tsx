@@ -258,63 +258,74 @@ const Report = () => {
   };
 
   return (
-    <div>
-      <h1 className="text-3xl font-bold text-center mb-6">
-        Inventory Aging Report
+    <div className="container mx-auto px-4 py-8">
+      <h1 className="text-4xl font-bold text-center mb-8">
+        Inventory Analysis Dashboard
       </h1>
-      <div className="mb-4">
-        <label
-          htmlFor="select-category"
-          className="block text-sm font-semibold mb-2"
-        >
-          Choose a Category:
-        </label>
-        <select
-          id="category-select"
-          value={selectedCategory}
-          onChange={handleCategoryChange}
-          className="p-2 border border-gray-300 rounded"
-        >
-          <option value="">Select Category</option>
-          {categories.map((category, index) => (
-            <option key={index} value={category}>
-              {category}
-            </option>
-          ))}
-        </select>
-      </div>
-      <div className="mb-4">
-        <div className="w-full md:w-[600px] h-[400px]">
-          <Bar data={categoryChartData} options={categoryChartOptions} />
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div className="bg-white p-6 rounded-lg shadow-lg">
+          <h2 className="text-2xl font-bold mb-4">Inventory Aging Report</h2>
+          <div className="mb-4">
+            <label
+              htmlFor="select-category"
+              className="block text-sm font-semibold mb-2"
+            >
+              Choose a Category:
+            </label>
+            <select
+              id="category-select"
+              value={selectedCategory}
+              onChange={handleCategoryChange}
+              className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="">Select Category</option>
+              {categories.map((category, index) => (
+                <option key={index} value={category}>
+                  {category}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="mb-6">
+            <div className="w-full h-[300px]">
+              {categoryChartData && (
+                <Bar data={categoryChartData} options={categoryChartOptions} />
+              )}
+            </div>
+          </div>
+          <div className="mb-4">
+            <label
+              htmlFor="select-product"
+              className="block text-sm font-semibold mb-2"
+            >
+              Choose a Product:
+            </label>
+            <select
+              id="product-select"
+              value={selectedProducts}
+              onChange={handleProductChange}
+              className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="">Select Product</option>
+              {products.map((product, index) => (
+                <option key={index} value={product}>
+                  {product}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="mb-4">
+            <div className="w-full h-[300px]">
+              {productChartData && (
+                <Bar data={productChartData} options={productChartOptions} />
+              )}
+            </div>
+          </div>
         </div>
+
+        <Backorder data={data} />
       </div>
-      <div className="mb-4">
-        <label
-          htmlFor="select-product"
-          className="block text-sm font-semibold mb-2"
-        >
-          Choose a Product:
-        </label>
-        <select
-          id="product-select"
-          value={selectedProducts}
-          onChange={handleProductChange}
-          className="p-2 border border-gray-300 rounded"
-        >
-          <option value="">Select Product</option>
-          {products.map((product, index) => (
-            <option key={index} value={product}>
-              {product}
-            </option>
-          ))}
-        </select>
-      </div>
-      <div className="mb-4">
-        <div className="w-full md:w-[600px] h-[400px]">
-          <Bar data={productChartData} options={productChartOptions} />
-        </div>
-      </div>
-      <Backorder data={data} />
     </div>
   );
 };
