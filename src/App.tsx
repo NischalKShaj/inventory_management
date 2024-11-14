@@ -1,4 +1,3 @@
-import React from "react";
 import { BrowserRouter as Router, Route, Routes, Link } from "react-router-dom";
 import SummaryPage from "./components/summary/Summary";
 import ReportPage from "./components/report/Report";
